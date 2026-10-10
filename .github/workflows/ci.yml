@@ -1,4 +1,4 @@
-# Proves the deployment on a fresh Ubuntu 24.04 VM (GitHub-hosted runner):
+# Proves the deployment on a fresh Ubuntu 26.04 VM (GitHub-hosted runner):
 # rootless Podman + podman-compose, pinned image, gateway under s6, no
 # published ports, file ownership, restart paths, backup/restore, uninstall.
 # The interactive setup wizard and a real reboot cannot run here; CI uses
@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   lint:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v5
       - name: Static rules (pin, no ports, no entrypoint/init, gitignore, shellcheck)
@@ -33,7 +33,7 @@ jobs:
 
   deploy:
     needs: lint
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       BASE_DIR: /srv/hermes-podman
     steps:
@@ -42,8 +42,11 @@ jobs:
       - name: Install prerequisites (the only sudo apt step in the docs)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq podman skopeo podman-compose uidmap slirp4netns
-          podman --version; skopeo --version; podman-compose version 2>/dev/null | tail -n1
+          sudo apt-get install -y -qq podman skopeo podman-compose uidmap passt make git
+          . /etc/os-release; echo "OS: $PRETTY_NAME"
+          podman --version; skopeo --version; podman-compose --version 2>/dev/null | tail -n1
+          podman info --format 'rootless={{.Host.Security.Rootless}} cgroups={{.Host.CgroupsVersion}}/{{.Host.CgroupManager}} net={{.Host.NetworkBackend}} rootlessnet={{.Host.RootlessNetworkCmd}}' || true
+          ls /usr/libexec/podman/quadlet /usr/lib/systemd/user/podman-restart.service
 
       - name: Place the repo at BASE_DIR, owned by the runner user
         run: |
