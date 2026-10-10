@@ -22,7 +22,7 @@ PURGE=1 make uninstall       # also deletes data/, backups/, data.pre-restore-*/
 | 5 | boot hook (option A) | `podman-restart.service` enabled for your user | `systemctl --user disable podman-restart.service` (manual: it also starts other `restart=always` containers you may have) |
 | 6 | linger | `/var/lib/systemd/linger/$USER` | `loginctl disable-linger "$USER"` (manual, same reason) |
 | 7 | the repo | `/srv/hermes-podman` | `rm -rf /srv/hermes-podman` after steps 1-4; then `sudo rmdir /srv/hermes-podman` if your user cannot remove it from `/srv` |
-| 8 | packages | podman, skopeo, podman-compose, uidmap, slirp4netns | `sudo apt-get remove podman skopeo podman-compose` (manual; uidmap/slirp4netns may be used by others) |
+| 8 | packages | podman, skopeo, podman-compose, uidmap, passt | `sudo apt-get remove podman skopeo podman-compose` (manual; uidmap/passt may be used by others) |
 
 This project never creates `~/.hermes`, `~/.local/bin/hermes` or any system
 systemd unit. If `preflight.sh` reported those, they came from a different

@@ -19,8 +19,10 @@ Why each of those choices was made: [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ## Prerequisites
 
-- Ubuntu 24.04 VM (what CI tests). 22.04's Podman 3.4 is too old for
-  `userns keep-id:uid=…`; see DECISIONS.md.
+- Ubuntu 26.04 LTS VM (what CI tests: Podman 5.7.0, podman-compose 1.5.0,
+  skopeo 1.21, rootless networking via pasta). 24.04 (Podman 4.9.3,
+  podman-compose 1.0.6) also worked in CI before the move to 26.04; 22.04's
+  Podman 3.4 is too old for `userns keep-id:uid=…`. See DECISIONS.md.
 - A normal user with sub-UIDs (`grep $USER /etc/subuid`; Ubuntu creates them
   for users added with `adduser`).
 - Outbound HTTPS to Docker Hub and to your model provider / chat platforms.
@@ -29,8 +31,8 @@ Why each of those choices was made: [docs/DECISIONS.md](docs/DECISIONS.md).
 One-time sudo commands, and why:
 
 ```sh
-# 1. Packages: Podman, skopeo (digest lookup), podman-compose, rootless helpers.
-sudo apt-get update && sudo apt-get install -y podman skopeo podman-compose uidmap slirp4netns make git
+# 1. Packages: Podman, skopeo (digest lookup), podman-compose, rootless helpers (uidmap, passt).
+sudo apt-get update && sudo apt-get install -y podman skopeo podman-compose uidmap passt make git
 # 2. BASE_DIR lives under /srv, which only root can create. Hand it to your user.
 sudo install -d -o "$USER" -g "$USER" /srv/hermes-podman
 # 3. Keep your user's systemd manager running without a login (reboot survival).
@@ -99,14 +101,15 @@ scripts/verify.sh         deployment checks (used by make verify and CI)
 scripts/lint.sh           static checks of the hard rules (used by CI)
 deploy/hermes.container   Quadlet unit, alternative to compose (docs/BOOT.md)
 docs/                     DECISIONS, UPGRADE, UNINSTALL, BOOT
-.github/workflows/ci.yml  end-to-end test on a GitHub ubuntu-24.04 VM
+.github/workflows/ci.yml  end-to-end test on a GitHub ubuntu-26.04 VM
 ```
 
 ## Verified, and not verified
 
-CI (`.github/workflows/ci.yml`) runs on a fresh GitHub-hosted Ubuntu 24.04 VM
-as a non-root user and checks, on every push and weekly (first green run:
-[#1](https://github.com/carlok/hermes-podman/actions/runs/38041566661), about 6 minutes):
+CI (`.github/workflows/ci.yml`) runs on a fresh GitHub-hosted Ubuntu 26.04 VM
+(the `ubuntu-26.04` runner image, which GitHub still labels **preview**)
+as a non-root user and checks, on every push and weekly (first green 26.04 run:
+[38044574602](https://github.com/carlok/hermes-podman/actions/runs/38044574602); the earlier 24.04 runs were also green):
 
 - the pinned digest still matches the `v0.21.6` tag on Docker Hub;
 - no `ports:`, `entrypoint:`, `init:`, `shm_size` or dashboard anywhere; shellcheck;
@@ -140,12 +143,14 @@ Suggested first-day check on the VM: `make setup`, `make up`, `make verify`,
 | Symptom | Cause / fix |
 |---|---|
 | `make up` says data/ is not initialised | run `make setup` first |
-| `Error: ... /dev/net/tun` or `slirp4netns failed` | `slirp4netns` missing or `/dev/net/tun` unavailable; install `slirp4netns` |
-| `keep-id: unknown option uid` | Podman older than 4.3; use Ubuntu 24.04 |
+| `pasta: …` / `slirp4netns failed` at start | rootless network helper missing; `sudo apt-get install passt` (Podman 5 default) |
+| `Error: --userns and --pod cannot be set together` | podman-compose ≥ 1.1 puts services in a pod; keep `x-podman: in_pod: false` in compose.yaml |
+| `keep-id: unknown option uid` | Podman older than 4.3; use Ubuntu 26.04 (or 24.04) |
+| `rootless netns: kill network process: permission denied` (exit 125) on stop | Podman 5.7 on 26.04: the container did stop, only network cleanup failed. The scripts and `make down` check the real state and carry on |
 | `ERROR: container started with --user …` | someone added a non-root `user:`; keep `user: "0:0"` (s6 drops to hermes itself) |
 | files in data/ owned by `100000`-ish UIDs | something ran as container root (e.g. `podman exec hermes …` without `--user hermes`). Fix with `podman unshare chown -R 0:0 data` (inside `podman unshare`, UID 0 is you) |
 | container gone after reboot | linger off (`loginctl show-user $USER -p Linger`) or `podman-restart.service` not enabled; see docs/BOOT.md |
-| `level=error msg="Unable to clean up network … device or resource busy"` on stop | harmless Podman 4.9 message seen on every rootless stop in CI; the container stops and restarts normally |
+| `level=error msg="Unable to clean up network … device or resource busy"` on stop | harmless Podman 4.9 (Ubuntu 24.04) message; the container stops and restarts normally |
 | `toomanyrequests` from Docker Hub | anonymous pull limit; wait, or `podman login docker.io` |
 | gateway keeps restarting | `make logs`; usually a missing/invalid key in `data/.env`; re-run the wizard |
 | zombie processes | `entrypoint:` or `init: true` was added; remove it (the image needs s6 as PID 1) |

@@ -2,9 +2,12 @@
 
 Each decision records what was chosen, why, and what was observed. "Observed"
 means run and seen, not read in documentation. Observations were made on
-2026-10-10 with Podman 4.9.3 / podman-compose 1.0.6 / skopeo 1.13.3 (Ubuntu
-24.04 packages), first in a rootless sandbox and then on the GitHub Actions
-ubuntu-24.04 VM (see `.github/workflows/ci.yml`).
+2026-10-10, first with Podman 4.9.3 / podman-compose 1.0.6 / skopeo 1.13.3
+(Ubuntu 24.04 packages) in a rootless sandbox and on the GitHub Actions
+ubuntu-24.04 VM, then on the ubuntu-26.04 VM (Ubuntu 26.04.1 LTS, kernel 7.0,
+Podman 5.7.0, podman-compose 1.5.0, skopeo 1.21.0~pre1, crun 1.21, netavark
+1.16.1, passt 2026-01-20). The target is now Ubuntu 26.04; see "Ubuntu 26.04
+differences" at the end.
 
 ## Why Podman, rootless
 
@@ -98,8 +101,8 @@ Consequences:
   also re-chowns its own directories at boot.
 - `scripts/backup.sh`, `restore.sh` and `uninstall.sh` still run `tar`/`rm`
   under `podman unshare`, so a stray sub-UID-owned file cannot break them.
-- Needs Podman ≥ 4.3 for `keep-id:uid=…,gid=…` (Ubuntu 24.04 has 4.9.3;
-  Ubuntu 22.04's 3.4.4 does not have it).
+- Needs Podman ≥ 4.3 for `keep-id:uid=…,gid=…` (Ubuntu 26.04 has 5.7.0,
+  24.04 has 4.9.3; 22.04's 3.4.4 does not have it). Same result on 4.9 and 5.7.
 
 ## Restart policy `always`
 
@@ -115,17 +118,33 @@ Hence `restart: always`. See BOOT.md.
   such as `TZ`; it is gitignored and created with mode 600.
 - No script prints `.env` content; `first-setup.sh` only reports ownership.
 
-## Tooling notes observed on Ubuntu 24.04
+## Tooling notes observed (both releases)
 
-- `podman-compose` 1.0.6 passes `userns_mode`, `user`, `env_file`, `restart`
+- `podman-compose` (1.0.6 on 24.04, 1.5.0 on 26.04) passes `userns_mode`, `user`, `env_file`, `restart`
   and `stop_grace_period` through to `podman run` (seen in its generated
   command line). It fails if `env_file` is missing, so `make up` creates `.env`.
 - The project name defaults to the directory name (`hermes-podman`), so the
   compose network is `hermes-podman_default`. The container name is fixed to
   `hermes`.
-- Rootless networking on 24.04's Podman 4.9 uses slirp4netns, which needs
-  `/dev/net/tun`.
+- Rootless networking: 24.04's Podman 4.9 uses slirp4netns; 26.04's Podman
+  5.7 uses pasta (package `passt`). Both need `/dev/net/tun`.
 - `hermes tools disable … --platform X` works non-interactively; `hermes tools`
   (the UI) and `hermes tools --summary` require a TTY.
 - `hermes setup --non-interactive` creates a default `config.yaml` without
   credentials (used by CI).
+
+## Ubuntu 26.04 differences (observed in CI)
+
+| | Ubuntu 24.04 | Ubuntu 26.04 | What this repo does |
+|---|---|---|---|
+| Podman | 4.9.3 | 5.7.0 | nothing version-specific needed |
+| podman-compose | 1.0.6, no pods | 1.5.0, **puts every project in a pod by default** | `x-podman: in_pod: false` in compose.yaml, because Podman refuses `--userns` inside a pod (`Error: --userns and --pod cannot be set together`). 1.0.6 ignores the key |
+| rootless network | slirp4netns | pasta (`passt` package) | README installs `passt` |
+| `podman stop` | exit 0, prints a harmless "Unable to clean up network … device or resource busy" | **may exit 125** with `rootless netns: kill network process: permission denied`, although the container has stopped | `podman_stop` / `compose_down` in `scripts/lib.sh` and `make down` check the real container state and only fail if it is still running |
+| skopeo | 1.13.3 | 1.21.0~pre1 (a pre-release packaged by Ubuntu) | digest lookups behave the same |
+| Quadlet, `podman-restart.service`, linger | work | work unchanged | none |
+| GitHub runner | `ubuntu-24.04` (GA) | `ubuntu-26.04` (**preview**: weekly image updates, no SLA) | CI uses `ubuntu-26.04` |
+
+The `podman stop` error looks like a Podman 5.7 / AppArmor interaction with
+the pasta process on 26.04. It is tolerated rather than fixed. If a later
+Podman update fixes it, nothing here needs to change.
