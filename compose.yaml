@@ -6,6 +6,11 @@
 #   - no `entrypoint:` override and no `init:` (s6-overlay must be PID 1)
 #   - no `ports:` and no HERMES_DASHBOARD (nothing reachable from the network)
 #   - all mutable state in ./data, mounted at /opt/data
+# podman-compose >= 1.1 (Ubuntu 26.04 ships a newer one) puts services in a
+# pod by default, and Podman refuses --userns inside a pod. Run it standalone.
+x-podman:
+  in_pod: false
+
 services:
   hermes:
     # Explicit release tag + its multi-arch index digest, as reported by
