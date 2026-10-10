@@ -1,0 +1,7 @@
+# Secrets and state: never commit.
+.env
+data/
+backups/
+# Scratch copies made by tests.
+.restore-test/
+data.pre-restore-*/

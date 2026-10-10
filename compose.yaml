@@ -1,0 +1,29 @@
+# Hermes Agent, headless gateway, rootless Podman.
+# Run with podman-compose from this directory (see Makefile).
+#
+# Hard rules for this file (see docs/DECISIONS.md):
+#   - image pinned by explicit version tag AND digest, never "latest"/"stable"
+#   - no `entrypoint:` override and no `init:` (s6-overlay must be PID 1)
+#   - no `ports:` and no HERMES_DASHBOARD (nothing reachable from the network)
+#   - all mutable state in ./data, mounted at /opt/data
+services:
+  hermes:
+    # Explicit release tag + its multi-arch index digest, as reported by
+    # `skopeo inspect --format '{{.Digest}}' docker://docker.io/nousresearch/hermes-agent:<tag>`.
+    # Change with scripts/upgrade.sh (also updates deploy/hermes.container); see docs/UPGRADE.md.
+    image: docker.io/nousresearch/hermes-agent:v0.21.6@sha256:55e192fba0cd4fde61142abbff5adeacff40efdb482ccd0ff877924bd274f909
+    container_name: hermes
+    command: ["gateway", "run"]
+    # "always", not "unless-stopped": podman-restart.service only restarts
+    # containers whose policy is exactly "always" (docs/BOOT.md).
+    restart: always
+    # Rootless UID fix (docs/DECISIONS.md): map YOUR host user to the image's
+    # hermes user (UID/GID 10000), so files in ./data are owned by you on the
+    # host. Start as container root so s6-overlay can run its bootstrap and
+    # then drop to hermes itself.
+    userns_mode: "keep-id:uid=10000,gid=10000"
+    user: "0:0"
+    env_file: .env
+    volumes:
+      - ./data:/opt/data
+    stop_grace_period: 30s

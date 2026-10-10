@@ -1,0 +1,163 @@
+# Proves the deployment on a fresh Ubuntu 24.04 VM (GitHub-hosted runner):
+# rootless Podman + podman-compose, pinned image, gateway under s6, no
+# published ports, file ownership, restart paths, backup/restore, uninstall.
+# The interactive setup wizard and a real reboot cannot run here; CI uses
+# `hermes setup --non-interactive` (no API keys) and simulates the reboot by
+# restarting the user's systemd manager. See docs/BOOT.md.
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * 1" # weekly: catches upstream re-tagging of the pinned version
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static rules (pin, no ports, no entrypoint/init, gitignore, shellcheck)
+        run: ./scripts/lint.sh
+      - name: Pinned digest still matches the tag on Docker Hub
+        run: |
+          . scripts/lib.sh
+          ref="$(image_ref)"; tag_ref="${ref%@*}"; want="${ref##*@}"
+          got="$(skopeo inspect --format '{{.Digest}}' "docker://$tag_ref")"
+          echo "tag $tag_ref -> $got (pinned $want)"
+          [ "$got" = "$want" ]
+
+  deploy:
+    needs: lint
+    runs-on: ubuntu-24.04
+    env:
+      BASE_DIR: /srv/hermes-podman
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install prerequisites (the only sudo apt step in the docs)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq podman skopeo podman-compose uidmap slirp4netns
+          podman --version; skopeo --version; podman-compose version 2>/dev/null | tail -n1
+
+      - name: Place the repo at BASE_DIR, owned by the runner user
+        run: |
+          sudo install -d -o "$(id -un)" -g "$(id -gn)" "$BASE_DIR"
+          cp -a . "$BASE_DIR/"
+          sudo loginctl enable-linger "$(id -un)"
+          for _ in $(seq 1 20); do [ -S "/run/user/$(id -u)/bus" ] && break; sleep 1; done
+          echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
+          echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus" >> "$GITHUB_ENV"
+
+      - name: Preflight report
+        working-directory: ${{ env.BASE_DIR }}
+        run: ./scripts/preflight.sh
+
+      - name: First setup (non-interactive, no API keys)
+        working-directory: ${{ env.BASE_DIR }}
+        run: |
+          ./scripts/first-setup.sh --non-interactive
+          test -f data/config.yaml
+
+      - name: make up + verify
+        working-directory: ${{ env.BASE_DIR }}
+        run: |
+          make up
+          sleep 20
+          make status
+          ./scripts/verify.sh
+
+      - name: Gateway crash is restarted by s6
+        working-directory: ${{ env.BASE_DIR }}
+        run: |
+          S=/package/admin/s6/command/s6-svstat
+          old="$(podman exec hermes $S -p /run/service/gateway-default)"
+          podman exec hermes kill "$old"
+          sleep 10
+          new="$(podman exec hermes $S -p /run/service/gateway-default)"
+          echo "gateway pid $old -> $new"
+          [ "$new" != "$old" ] && [ "$new" -gt 0 ]
+
+      - name: Reboot survival via linger + podman-restart.service (simulated)
+        working-directory: ${{ env.BASE_DIR }}
+        run: |
+          systemctl --user enable podman-restart.service
+          podman stop hermes
+          # Restarting user@UID is what happens to the user's systemd manager at
+          # boot when linger is on: default.target pulls in podman-restart.service,
+          # which starts every container with restart policy "always".
+          sudo systemctl restart "user@$(id -u).service"
+          for _ in $(seq 1 30); do [ "$(podman inspect -f '{{.State.Running}}' hermes)" = true ] && break; sleep 2; done
+          systemctl --user status podman-restart.service --no-pager || true
+          sleep 15
+          ./scripts/verify.sh
+
+      - name: Backup, scratch restore, full restore
+        working-directory: ${{ env.BASE_DIR }}
+        run: |
+          make backup
+          a="$(ls -1t backups/*.tar.gz | sed -n 1p)"
+          ./scripts/restore.sh "$a" "$RUNNER_TEMP/restore-scratch"
+          diff data/config.yaml "$RUNNER_TEMP/restore-scratch/config.yaml"
+          diff -r data/memories "$RUNNER_TEMP/restore-scratch/memories"
+          [ "$(stat -c %U "$RUNNER_TEMP/restore-scratch/config.yaml")" = "$(id -un)" ]
+          make down
+          echo marker > data/memories/ci-marker.txt
+          YES=1 ./scripts/restore.sh "$a"
+          test ! -e data/memories/ci-marker.txt
+          test -e data.pre-restore-*/memories/ci-marker.txt
+          make up
+          sleep 20
+          ./scripts/verify.sh
+
+      - name: Upgrade script (list releases, refuse moving tags, no-op on same pin)
+        working-directory: ${{ env.BASE_DIR }}
+        run: |
+          ./scripts/upgrade.sh
+          ! ./scripts/upgrade.sh latest
+          ./scripts/upgrade.sh "$(. scripts/lib.sh; image_tag)" | tee /tmp/up.log
+          grep -q 'Already pinned' /tmp/up.log
+          git -C "$BASE_DIR" diff --exit-code -- compose.yaml deploy/hermes.container
+
+      - name: Quadlet alternative (deploy/hermes.container)
+        working-directory: ${{ env.BASE_DIR }}
+        run: |
+          make down
+          systemctl --user disable podman-restart.service
+          mkdir -p ~/.config/containers/systemd
+          cp deploy/hermes.container ~/.config/containers/systemd/
+          systemctl --user daemon-reload
+          systemctl --user start hermes.service
+          sleep 30
+          systemctl --user status hermes.service --no-pager | head -n 15
+          ./scripts/verify.sh
+          sudo systemctl restart "user@$(id -u).service"
+          for _ in $(seq 1 60); do [ "$(podman inspect -f '{{.State.Running}}' hermes 2>/dev/null)" = true ] && break; sleep 2; done
+          sleep 20
+          ./scripts/verify.sh
+          make backup
+          systemctl --user is-active hermes.service
+          sleep 20
+          ./scripts/verify.sh
+          systemctl --user stop hermes.service
+
+      - name: Uninstall (PURGE=1) leaves nothing behind
+        working-directory: ${{ env.BASE_DIR }}
+        run: |
+          YES=1 PURGE=1 ./scripts/uninstall.sh
+          ! podman container exists hermes
+          [ -z "$(podman images -q docker.io/nousresearch/hermes-agent)" ]
+          [ ! -e data ] && [ ! -e backups ] && [ ! -e .env ]
+          [ ! -e ~/.config/containers/systemd/hermes.container ]
+
+      - name: Logs on failure
+        if: failure()
+        run: |
+          podman ps -a || true
+          podman logs --tail 200 hermes || true
+          journalctl --user -n 100 --no-pager || true
