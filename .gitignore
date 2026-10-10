@@ -5,3 +5,5 @@ backups/
 # Scratch copies made by tests.
 .restore-test/
 data.pre-restore-*/
+# Machine-local extras (extra mounts for this host). Never commit one: CI has none.
+compose.override.yaml

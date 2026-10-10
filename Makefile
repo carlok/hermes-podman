@@ -2,6 +2,10 @@
 # Run from the repo directory as your normal user (never with sudo).
 SHELL := /bin/bash
 COMPOSE ?= podman-compose
+# Machine-local extras (a host bind mount a ported cron job needs, etc.) go in
+# compose.override.yaml. It is gitignored, so CI and fresh clones never have one and
+# the portable definition in compose.yaml stays the only thing they test.
+COMPOSE_FILES = -f compose.yaml $(if $(wildcard compose.override.yaml),-f compose.override.yaml)
 C := hermes
 
 .PHONY: help setup up down restart logs shell chat status verify upgrade backup restore uninstall
@@ -29,11 +33,11 @@ setup:
 
 up: .env
 	@test -f data/config.yaml || { echo "data/ is not initialised; run 'make setup' first."; exit 1; }
-	$(COMPOSE) up -d
+	$(COMPOSE) $(COMPOSE_FILES) up -d
 
 down:
 	@# Podman 5 may report a network cleanup error after a clean stop; succeed once the container is gone.
-	$(COMPOSE) down || { podman rm -f $(C) >/dev/null 2>&1; ! podman container exists $(C); }
+	$(COMPOSE) $(COMPOSE_FILES) down || { podman rm -f $(C) >/dev/null 2>&1; ! podman container exists $(C); }
 
 restart:
 	podman restart $(C)

@@ -25,7 +25,11 @@ is_running() {
 }
 
 compose() {
-    (cd "$REPO_DIR" && "$COMPOSE" "$@")
+    # compose.yaml is the portable definition; a machine-local compose.override.yaml
+    # (gitignored, absent in CI) is merged on top when it exists.
+    local files=(-f compose.yaml)
+    [ -f "$REPO_DIR/compose.override.yaml" ] && files+=(-f compose.override.yaml)
+    (cd "$REPO_DIR" && "$COMPOSE" "${files[@]}" "$@")
 }
 
 ensure_env_file() {

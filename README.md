@@ -83,6 +83,33 @@ Everything else:
 Reconfigure later (e.g. add a platform): `make down && ./scripts/first-setup.sh && make up`.
 Re-running the wizard keeps existing values as defaults.
 
+### Machine-local extras (optional)
+
+`compose.yaml` describes only what every host has: the pinned image, the `./data` mount at
+`/opt/data`, no ports. If a host needs one more bind mount — for example a machine that ran
+Hermes before this deployment, whose cron jobs work inside a repo kept outside the container —
+put it in a **machine-local override**:
+
+```sh
+cat > compose.override.yaml <<'YAML'
+services:
+  hermes:
+    volumes:
+      - /home/you/projects:/home/you/projects
+YAML
+make down && make up        # recreate so the mount takes effect
+```
+
+`make` and the scripts (`backup.sh`, `restore.sh`, `uninstall.sh`) merge
+`compose.override.yaml` automatically when it exists. It is **gitignored on purpose**: CI and
+fresh clones have none, so the portable definition in `compose.yaml` is what gets tested, and
+one host's paths are never committed. Mounts whose source path does not exist make
+`podman` fail with `statfs …: no such file or directory` — that is why they belong here and
+not in `compose.yaml`. (Using the Quadlet alternative instead? Compose overrides do not apply
+there: add the same mount as a `Volume=` line in the *installed* copy of the unit, under
+`~/.config/containers/systemd/`, and leave the tracked `deploy/hermes.container` matching
+`compose.yaml` — CI diffs its image pin.)
+
 ## Repository layout
 
 ```
