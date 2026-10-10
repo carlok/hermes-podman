@@ -54,7 +54,7 @@ podman pull "$new" >/dev/null
 sed -i "s|^\([[:space:]]*image:[[:space:]]*\).*|\1$new|" "$REPO_DIR/compose.yaml"
 sed -i "s|^Image=.*|Image=$new|" "$REPO_DIR/deploy/hermes.container"
 
-compose down
+compose_down
 compose up -d
 sleep 5
 echo "Now running: $(podman exec "$CONTAINER" hermes --version 2>/dev/null | sed -n 1p)"

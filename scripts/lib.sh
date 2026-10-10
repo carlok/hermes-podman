@@ -64,9 +64,27 @@ quadlet_active() {
 # podman otherwise.
 stop_hermes() {
     if quadlet_active; then systemctl --user stop hermes.service
-    else podman stop -t 30 "$CONTAINER" >/dev/null; fi
+    else podman_stop; fi
+}
+
+# `podman stop` that tolerates a failed network cleanup once the container is
+# really stopped. Podman 5 on Ubuntu 26.04 (rootless, pasta) can exit 125 with
+# "rootless netns: kill network process: permission denied" after a clean stop.
+podman_stop() {
+    if ! podman stop -t 30 "$CONTAINER" >/dev/null; then
+        is_running && return 1
+        echo "note: container stopped; ignoring podman's network cleanup error" >&2
+    fi
 }
 start_hermes() {
     if [ "${1:-}" = quadlet ]; then systemctl --user start hermes.service
     else podman start "$CONTAINER" >/dev/null; fi
+}
+
+# `podman-compose down`, tolerating the same network cleanup error: succeed
+# once the container is gone.
+compose_down() {
+    compose down && return 0
+    podman rm -f "$CONTAINER" >/dev/null 2>&1 || true
+    if podman container exists "$CONTAINER"; then return 1; fi
 }

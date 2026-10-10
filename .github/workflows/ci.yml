@@ -90,7 +90,7 @@ jobs:
         working-directory: ${{ env.BASE_DIR }}
         run: |
           systemctl --user enable podman-restart.service
-          podman stop hermes
+          (. scripts/lib.sh; podman_stop)
           # Restarting user@UID is what happens to the user's systemd manager at
           # boot when linger is on: default.target pulls in podman-restart.service,
           # which starts every container with restart policy "always".
@@ -157,6 +157,14 @@ jobs:
           [ -z "$(podman images -q docker.io/nousresearch/hermes-agent)" ]
           [ ! -e data ] && [ ! -e backups ] && [ ! -e .env ]
           [ ! -e ~/.config/containers/systemd/hermes.container ]
+
+      - name: Environment report
+        if: always()
+        run: |
+          . /etc/os-release; echo "OS: $PRETTY_NAME, kernel $(uname -r)"
+          podman --version; skopeo --version; podman-compose --version 2>&1 | tail -n1
+          dpkg-query -W podman skopeo podman-compose passt slirp4netns crun netavark uidmap 2>/dev/null || true
+          podman info --format 'cgroups={{.Host.CgroupsVersion}}/{{.Host.CgroupManager}} network={{.Host.NetworkBackend}} rootlessnet={{.Host.RootlessNetworkCmd}} runtime={{.Host.OCIRuntime.Name}}' || true
 
       - name: Logs on failure
         if: failure()

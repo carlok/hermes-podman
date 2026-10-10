@@ -32,7 +32,8 @@ up: .env
 	$(COMPOSE) up -d
 
 down:
-	$(COMPOSE) down
+	@# Podman 5 may report a network cleanup error after a clean stop; succeed once the container is gone.
+	$(COMPOSE) down || { podman rm -f $(C) >/dev/null 2>&1; ! podman container exists $(C); }
 
 restart:
 	podman restart $(C)

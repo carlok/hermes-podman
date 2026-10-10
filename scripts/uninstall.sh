@@ -9,7 +9,7 @@
 ask() { [ "${YES:-0}" = 1 ] && return 0; read -r -p "$1 [y/N] " a; [ "$a" = y ] || [ "$a" = Y ]; }
 
 if podman container exists "$CONTAINER" && ask "Stop and remove container '$CONTAINER'?"; then
-    compose down || podman rm -f "$CONTAINER"
+    compose_down
 fi
 
 quadlet="$HOME/.config/containers/systemd/hermes.container"
