@@ -127,6 +127,7 @@ scripts/uninstall.sh      remove what this project created
 scripts/verify.sh         deployment checks (used by make verify and CI)
 scripts/lint.sh           static checks of the hard rules (used by CI)
 deploy/hermes.container   Quadlet unit, alternative to compose (docs/BOOT.md)
+deploy/podman-restart-retry.conf  drop-in so the container survives a real boot (docs/BOOT.md)
 docs/                     DECISIONS, UPGRADE, UNINSTALL, BOOT
 .github/workflows/ci.yml  end-to-end test on a GitHub ubuntu-26.04 VM
 ```
@@ -156,8 +157,13 @@ Not verifiable in CI, so **unverified** until you do it on your VM:
 
 - the **interactive** wizard with real API keys (CI only runs `--non-interactive`, so
   the gateway starts with no model provider and no platforms);
-- a real **VM reboot** (CI restarts `user@UID.service`, which is what linger
-  runs at boot, but not the kernel);
+- a real **VM reboot** — done on 2026-10-10 on an Ubuntu 26.04 host (linger on, unit enabled,
+  policy `always`) and it **failed**: `podman-restart.service` fires ~20 s after kernel start,
+  podman's re-exec hits `failed to reexec: Permission denied` there, and being a `oneshot` it
+  gets no second attempt, so the container stayed down until `make up`. Install
+  [deploy/podman-restart-retry.conf](deploy/podman-restart-retry.conf) to fix it — after that,
+  the next real reboot brought the container back ~20 s in, unchanged. CI cannot see this: it
+  restarts `user@UID.service`, not the kernel (docs/BOOT.md);
 - a real **upgrade to a different version** (CI only exercises the same-version path,
   to avoid a second 3 GB pull);
 - messaging platforms actually connecting (needs your tokens).
@@ -177,6 +183,7 @@ Suggested first-day check on the VM: `make setup`, `make up`, `make verify`,
 | `ERROR: container started with --user …` | someone added a non-root `user:`; keep `user: "0:0"` (s6 drops to hermes itself) |
 | files in data/ owned by `100000`-ish UIDs | something ran as container root (e.g. `podman exec hermes …` without `--user hermes`). Fix with `podman unshare chown -R 0:0 data` (inside `podman unshare`, UID 0 is you) |
 | container gone after reboot | linger off (`loginctl show-user $USER -p Linger`) or `podman-restart.service` not enabled; see docs/BOOT.md |
+| container not running after a *real* reboot, `podman-restart.service` failed with `failed to reexec: Permission denied` | the vendor unit loses the boot race on Ubuntu 26.04; install `deploy/podman-restart-retry.conf` (docs/BOOT.md) |
 | `level=error msg="Unable to clean up network … device or resource busy"` on stop | harmless Podman 4.9 (Ubuntu 24.04) message; the container stops and restarts normally |
 | `toomanyrequests` from Docker Hub | anonymous pull limit; wait, or `podman login docker.io` |
 | gateway keeps restarting | `make logs`; usually a missing/invalid key in `data/.env`; re-run the wizard |
