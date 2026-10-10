@@ -20,7 +20,7 @@ jobs:
   lint:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Static rules (pin, no ports, no entrypoint/init, gitignore, shellcheck)
         run: ./scripts/lint.sh
       - name: Pinned digest still matches the tag on Docker Hub
@@ -37,7 +37,7 @@ jobs:
     env:
       BASE_DIR: /srv/hermes-podman
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install prerequisites (the only sudo apt step in the docs)
         run: |

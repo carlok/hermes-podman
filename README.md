@@ -1,5 +1,7 @@
 # hermes-podman
 
+[![ci](https://github.com/carlok/hermes-podman/actions/workflows/ci.yml/badge.svg)](https://github.com/carlok/hermes-podman/actions/workflows/ci.yml)
+
 Headless [Hermes Agent](https://hermes-agent.nousresearch.com/) gateway on an
 Ubuntu cloud VM with **rootless Podman** and **podman-compose**, described
 entirely by this repository: setup, day-2 operations, upgrade, backup,
@@ -103,7 +105,8 @@ docs/                     DECISIONS, UPGRADE, UNINSTALL, BOOT
 ## Verified, and not verified
 
 CI (`.github/workflows/ci.yml`) runs on a fresh GitHub-hosted Ubuntu 24.04 VM
-as a non-root user and checks, on every push and weekly:
+as a non-root user and checks, on every push and weekly (first green run:
+[#1](https://github.com/carlok/hermes-podman/actions/runs/38041566661), about 6 minutes):
 
 - the pinned digest still matches the `v0.21.6` tag on Docker Hub;
 - no `ports:`, `entrypoint:`, `init:`, `shm_size` or dashboard anywhere; shellcheck;
@@ -142,6 +145,7 @@ Suggested first-day check on the VM: `make setup`, `make up`, `make verify`,
 | `ERROR: container started with --user …` | someone added a non-root `user:`; keep `user: "0:0"` (s6 drops to hermes itself) |
 | files in data/ owned by `100000`-ish UIDs | something ran as container root (e.g. `podman exec hermes …` without `--user hermes`). Fix with `podman unshare chown -R 0:0 data` (inside `podman unshare`, UID 0 is you) |
 | container gone after reboot | linger off (`loginctl show-user $USER -p Linger`) or `podman-restart.service` not enabled; see docs/BOOT.md |
+| `level=error msg="Unable to clean up network … device or resource busy"` on stop | harmless Podman 4.9 message seen on every rootless stop in CI; the container stops and restarts normally |
 | `toomanyrequests` from Docker Hub | anonymous pull limit; wait, or `podman login docker.io` |
 | gateway keeps restarting | `make logs`; usually a missing/invalid key in `data/.env`; re-run the wizard |
 | zombie processes | `entrypoint:` or `init: true` was added; remove it (the image needs s6 as PID 1) |
