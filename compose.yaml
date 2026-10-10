@@ -31,4 +31,8 @@ services:
     env_file: .env
     volumes:
       - ./data:/opt/data
+      # --- this machine's extras (see ~/hermes-port/PORTING-native-to-podman.md) ---
+      # The host repos stay at their real paths, so the ported cron jobs' workdirs
+      # (e.g. /home/carlok/projects/carlok.github.io) keep working unchanged.
+      - /home/carlok/projects:/home/carlok/projects
     stop_grace_period: 30s
