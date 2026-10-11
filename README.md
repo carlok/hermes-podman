@@ -16,6 +16,7 @@ restore, reboot survival and removal.
 | State | everything mutable in `BASE_DIR/data` (mounted at `/opt/data`) |
 
 Why each of those choices was made: [docs/DECISIONS.md](docs/DECISIONS.md).
+Already running Hermes elsewhere and moving it in? [docs/PORTING-native-install.md](docs/PORTING-native-install.md).
 
 ## Prerequisites
 
@@ -128,7 +129,7 @@ scripts/verify.sh         deployment checks (used by make verify and CI)
 scripts/lint.sh           static checks of the hard rules (used by CI)
 deploy/hermes.container   Quadlet unit, alternative to compose (docs/BOOT.md)
 deploy/podman-restart-retry.conf  drop-in so the container survives a real boot (docs/BOOT.md)
-docs/                     DECISIONS, UPGRADE, UNINSTALL, BOOT
+docs/                     DECISIONS, UPGRADE, UNINSTALL, BOOT, PORTING-native-install
 .github/workflows/ci.yml  end-to-end test on a GitHub ubuntu-26.04 VM
 ```
 
