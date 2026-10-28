@@ -1,0 +1,30 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "docker:pinDigests"
+  ],
+  "automerge": false,
+  "packageRules": [
+    {
+      "description": "Hermes Agent: one PR for compose.yaml + deploy/hermes.container (tag + digest)",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["nousresearch/hermes-agent", "docker.io/nousresearch/hermes-agent"],
+      "groupName": "hermes-agent image",
+      "matchUpdateTypes": ["minor", "major"]
+    },
+    {
+      "description": "Hermes Agent: skip patch-only image bumps (use minor/major PRs or scripts/upgrade.sh)",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["nousresearch/hermes-agent", "docker.io/nousresearch/hermes-agent"],
+      "matchUpdateTypes": ["patch"],
+      "enabled": false
+    },
+    {
+      "description": "GitHub Actions: low-noise weekly batch",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "schedule": ["before 6am on monday"]
+    }
+  ]
+}

@@ -7,7 +7,7 @@
 #   systemctl --user daemon-reload
 #   systemctl --user start hermes.service
 # Paths below assume BASE_DIR=/srv/hermes-podman; edit them if yours differs.
-# Keep Image= identical to compose.yaml (scripts/upgrade.sh only edits compose.yaml).
+# Keep Image= identical to compose.yaml (scripts/upgrade.sh and Renovate update both).
 
 [Unit]
 Description=Hermes Agent gateway (rootless Podman, headless)

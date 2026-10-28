@@ -15,7 +15,7 @@ services:
   hermes:
     # Explicit release tag + its multi-arch index digest, as reported by
     # `skopeo inspect --format '{{.Digest}}' docker://docker.io/nousresearch/hermes-agent:<tag>`.
-    # Change with scripts/upgrade.sh (also updates deploy/hermes.container); see docs/UPGRADE.md.
+    # Change with scripts/upgrade.sh, a Renovate PR, or both paths in docs/UPGRADE.md; keep deploy/hermes.container identical.
     image: docker.io/nousresearch/hermes-agent:v0.21.6@sha256:55e192fba0cd4fde61142abbff5adeacff40efdb482ccd0ff877924bd274f909
     container_name: hermes
     command: ["gateway", "run"]

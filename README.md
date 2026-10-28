@@ -84,6 +84,10 @@ Everything else:
 Reconfigure later (e.g. add a platform): `make down && ./scripts/first-setup.sh && make up`.
 Re-running the wizard keeps existing values as defaults.
 
+### Image updates (Renovate)
+
+[`renovate.json`](renovate.json) tells the [Renovate GitHub App](https://github.com/apps/renovate) to open PRs when a new `docker.io/nousresearch/hermes-agent` release appears on Docker Hub. Each PR updates **both** `compose.yaml` and `deploy/hermes.container` with the same `vX.Y.Z@sha256:…` pin so `scripts/lint.sh` stays happy. Renovate proposes **minor and major** bumps only (patch releases are skipped while Hermes is 0.x); GitHub Actions version bumps are grouped weekly. **Install the app on this repository** to turn Renovate on — the config does nothing until then. You can still upgrade manually with `make upgrade` / `scripts/upgrade.sh`.
+
 ### Machine-local extras (optional)
 
 `compose.yaml` describes only what every host has: the pinned image, the `./data` mount at
@@ -127,6 +131,7 @@ scripts/upgrade.sh        list releases / re-pin tag+digest via skopeo, back up,
 scripts/uninstall.sh      remove what this project created
 scripts/verify.sh         deployment checks (used by make verify and CI)
 scripts/lint.sh           static checks of the hard rules (used by CI)
+renovate.json             Renovate bot config (Hermes image + GitHub Actions)
 deploy/hermes.container   Quadlet unit, alternative to compose (docs/BOOT.md)
 deploy/podman-restart-retry.conf  drop-in so the container survives a real boot (docs/BOOT.md)
 docs/                     DECISIONS, UPGRADE, UNINSTALL, BOOT, PORTING-native-install
