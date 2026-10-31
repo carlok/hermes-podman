@@ -16,7 +16,7 @@ services:
     # Explicit release tag + its multi-arch index digest, as reported by
     # `skopeo inspect --format '{{.Digest}}' docker://docker.io/nousresearch/hermes-agent:<tag>`.
     # Change with scripts/upgrade.sh (also updates deploy/hermes.container); see docs/UPGRADE.md.
-    image: docker.io/nousresearch/hermes-agent:v0.21.6@sha256:55e192fba0cd4fde61142abbff5adeacff40efdb482ccd0ff877924bd274f909
+    image: docker.io/nousresearch/hermes-agent:v0.22.5@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d
     container_name: hermes
     command: ["gateway", "run"]
     # "always", not "unless-stopped": podman-restart.service only restarts

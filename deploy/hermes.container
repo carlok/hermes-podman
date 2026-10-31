@@ -15,7 +15,7 @@ Wants=network-online.target
 After=network-online.target
 
 [Container]
-Image=docker.io/nousresearch/hermes-agent:v0.21.6@sha256:55e192fba0cd4fde61142abbff5adeacff40efdb482ccd0ff877924bd274f909
+Image=docker.io/nousresearch/hermes-agent:v0.22.5@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d
 ContainerName=hermes
 Exec=gateway run
 UserNS=keep-id:uid=10000,gid=10000
